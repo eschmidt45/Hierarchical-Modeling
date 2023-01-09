@@ -1,0 +1,685 @@
+---
+title: "Appendix"
+author: "Emma Schmidt"
+date: "2022-11-06"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(ggplot2)
+library(brms)
+library(ggpubr)
+library(sjPlot)
+library(insight)
+library(httr)
+library(tidyr)
+library(reshape)
+library(stringr)
+```
+
+```{r}
+census <- read.table("~/Desktop/Duke/610/Census2010_long.txt", header = TRUE)
+
+voter <- read.table("~/Desktop/Duke/610/voter_stats_20161108.txt", header = TRUE)
+```
+
+```{r}
+# Explore Voter Categories
+
+# Race
+voter %>%
+  filter(race_code != "") %>%
+  mutate(total_sum = sum(total_voters)) %>%
+  group_by(race_code) %>%
+  summarize(race_sum = 100*(sum(total_voters)/mean(total_sum)))
+
+# Ethnic Code
+voter %>%
+  mutate(total_sum = sum(total_voters)) %>%
+  group_by(ethnic_code) %>%
+  summarize(ethnicity_sum = sum(total_voters)/mean(total_sum))
+
+# Gender
+voter %>%
+  mutate(total_sum = sum(total_voters)) %>%
+  group_by(sex_code) %>%
+  summarize(sex_sum = sum(total_voters)/mean(total_sum))
+
+# Party Code
+voter %>%
+  mutate(total_sum = sum(total_voters)) %>%
+  group_by(party_cd) %>%
+  summarize(party_sum = sum(total_voters)/mean(total_sum))
+
+# Age
+voter %>%
+  mutate(total_sum = sum(total_voters)) %>%
+  group_by(age) %>%
+  summarize(party_sum = sum(total_voters)/mean(total_sum))
+
+
+```
+
+
+```{r}
+# Data Pre-processing
+voter_update <- voter %>%
+  mutate(race = case_when(race_code == "W" ~ "White",
+                              race_code == "B" ~ "Black",
+                              TRUE ~ "Other"),
+         age = case_when(age == "Age 41 - 65" ~ "41-65", 
+                         age == "Age 18 - 25" ~ "18-25",
+                         age == "Age 26 - 40" ~ "26-40",
+                         TRUE ~ "66+"),
+         sex = case_when(sex_code == "M" ~ "Male",
+                              sex_code == "F" ~ "Female",
+                              TRUE ~ "Unspecified"),
+         ethnicity = case_when(ethnic_code == "HL" ~ "Hispanic",
+                               ethnic_code == "NL" ~ "Non-Hispanic",
+                               TRUE ~ "Unspecified")) %>%
+  filter(sex != "Unspecified", party_cd != "LIB")
+
+
+# Impute Hispanic/Non-Hispanic
+gg <- voter_update %>%
+  filter(ethnicity != "Unspecified") %>%
+  group_by(ethnicity) %>%
+  summarise(total_voters = sum(total_voters)) %>%
+  pull(total_voters)
+ 
+perc_hispanic <- gg[1]/sum(gg)
+
+ 
+
+add_hispanic <- voter_update %>%
+  filter(ethnicity == "Unspecified") %>%
+  group_by(county_desc, race, age, sex, party_cd) %>%
+  summarise(total_voters = round(perc_hispanic * sum(total_voters))) %>%
+  mutate(ethnicity = "Hispanic") %>%
+  filter(total_voters > 0)
+
+add_nothispanic <- voter_update %>%
+  filter(ethnicity == "Unspecified") %>%
+  group_by(county_desc, race, age, sex, party_cd) %>%
+  summarise(total_voters = round((1-perc_hispanic) * sum(total_voters))) %>%
+  mutate(ethnicity = "Non-Hispanic") %>%
+  filter(total_voters > 0)
+
+ 
+
+new_hispanic <- rbind(add_hispanic, add_nothispanic) %>%
+  select(county_desc, race, age, sex, party_cd, ethnicity, total_voters)
+
+ 
+
+old_hispanic <- voter_update %>%
+  filter(ethnicity != "Unspecified") %>%
+  group_by(county_desc, race, age, sex, party_cd, ethnicity) %>%
+  summarise(total_voters = sum(total_voters))
+
+ 
+
+voter_agg <- rbind(old_hispanic, new_hispanic) %>%
+  group_by(county_desc, race, age, sex, party_cd, ethnicity) %>%
+  summarise(total_voters = sum(total_voters))
+
+  
+
+census_agg <- census %>%
+  mutate(county_desc = Geography,
+         age = Age,
+         sex = Gender,
+         race = case_when(Race == "WhiteAlone" ~ "White",
+                              Race == "BlackAlone" ~ "Black",
+                              TRUE ~ "Other"),
+         ethnicity = case_when(Hispanic == "NotHispanic" ~ "Non-Hispanic",
+                               TRUE ~ "Hispanic")) %>%
+  group_by(county_desc, sex, race, age, ethnicity) %>%
+  summarise(Freq = sum(Freq), TotalCountyPopulation = mean(TotalCountyPopulation))
+  
+
+# Merge the two data frames
+data_merge <- merge(voter_agg, census_agg, by=c('county_desc', 'age', 
+                                                          'sex', 'race', 'ethnicity'))
+# Impute census population data
+check <- data_merge %>%
+  group_by(county_desc, race, age, sex, ethnicity) %>%
+  summarise(total_voters = sum(total_voters),
+            Freq = mean(Freq), 
+            log_tot_voters = mean(log(total_voters)),
+            log_tot_county = mean(log(TotalCountyPopulation))) %>%
+  mutate(is_over = (total_voters > Freq))
+  
+sum(check$is_over)
+
+
+check <- check %>%
+  mutate(diff = Freq - total_voters)
+
+# Poisson regression to impute the total number of voters when the difference is positive
+fit <- glm(diff ~ race + sex + age + ethnicity + log_tot_county + log_tot_voters,
+           data = check %>% filter(is_over == FALSE), family = "poisson")
+
+# Make the prediction where the diff is negative
+pred_diff <- round(predict(fit, newdata =  check %>% filter(is_over == TRUE), 
+                     type = "response"))
+
+# Create a new column with the frequency corrected by the prediction
+new_diff <- check$diff
+new_diff[check$is_over==TRUE] <- pred_diff
+check$Freq2 <- new_diff + check$total_voters
+
+# Join with the whole dataset
+data_merge2 <- merge(data_merge, check %>%
+              select(county_desc, race, age, sex, ethnicity, Freq2),
+              by = c("county_desc", "race", "age", "sex", "ethnicity"))
+
+# Compute registration turnout
+df_reg <- data_merge2 %>%
+  group_by(county_desc, race, age, sex, ethnicity) %>%
+  mutate(Freq = Freq2 - sum(total_voters) + total_voters)
+
+ 
+
+
+
+```
+
+```{r}
+# select 30 counties
+set.seed(45)
+
+counties <- unique(voter$county_desc)
+
+selected_counties <- sample(counties, 30, replace = FALSE)
+
+df_select <- df_reg %>%
+  filter(county_desc %in% selected_counties)
+```
+
+```{r}
+# percentage of voters by party
+pct <- df_select %>%
+  group_by(county_desc, party_cd) %>%
+  summarize(total = sum(total_voters)) %>%
+  ungroup() %>%
+  group_by(county_desc) %>%
+  mutate(percentage = total/sum(total)) 
+
+
+ggplot(data = pct, aes(x=party_cd, y=percentage)) +
+  geom_boxplot(fill = "blue", alpha = 0.5) +
+  theme_bw() + 
+  labs(x = "Party Affiliation", y = "Percentage of Registered Voters") +
+  facet_wrap(~"Voter Registration by Party Affiliation Within Counties")
+```
+
+```{r}
+# Explore Sex Code
+sex <- df_select %>%
+  group_by(sex, party_cd) %>%
+  summarize(total_voters = sum(total_voters)) %>%
+  ungroup() %>%
+  group_by(sex) %>%
+  mutate(percentage = total_voters/sum(total_voters))
+
+ggplot(data = sex, aes(x=sex, y=percentage, fill = party_cd)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  theme_bw()
+
+sex2 <- df_select %>%
+  group_by(sex, party_cd) %>%
+  summarize(total_voters = sum(total_voters)) %>%
+  ungroup() %>%
+  group_by(party_cd) %>%
+  mutate(percentage = total_voters/sum(total_voters))
+
+sex_plot <- ggplot(data = sex2, aes(x=party_cd, y=percentage, fill = sex)) +
+  geom_bar(stat = "identity", position = "dodge", color = "black") +
+  theme_bw() +
+  ylim(0, 1) +
+  labs(x="Party", y="Percentage of Registered Voters", fill="Sex") + 
+  scale_fill_discrete(labels=c('F', 'M')) +
+  facet_wrap(~"Party Registration by Sex")
+
+sex_plot 
+```
+
+```{r}
+# percentage of voters by age group
+age <- df_select %>%
+  group_by(age, party_cd) %>%
+  summarize(total = sum(total_voters)) %>%
+  ungroup() %>%
+  group_by(age) %>%
+  mutate(percentage = total/sum(total))
+
+ggplot(data = age, aes(x=age, y=percentage, fill = party_cd)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  theme_bw()
+
+age2 <- df_select %>%
+  group_by(age, party_cd) %>%
+  summarize(total = sum(total_voters)) %>%
+  ungroup() %>%
+  group_by(party_cd) %>%
+  mutate(percentage = total/sum(total))
+
+age_plot <- ggplot(data = age2, aes(x=party_cd, y=percentage, fill = age)) +
+  geom_bar(stat = "identity", position = "dodge", color = "black") +
+  theme_bw() +
+  ylim(0, 1) +
+  labs(x="Party", y="Percentage of Registered Voters", fill = "Age") +
+  facet_wrap(~"Party Registration by Age")
+
+age_plot
+```
+
+```{r}
+# Explore Race Code
+race <- df_select %>%
+  group_by(race, party_cd) %>%
+  summarize(total_voters = sum(total_voters)) %>%
+  ungroup() %>%
+  group_by(race) %>%
+  mutate(percentage = total_voters/sum(total_voters))
+
+ggplot(data = race, aes(x=race, y=percentage, fill = party_cd)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  theme_bw()
+
+race2 <- df_select %>%
+  group_by(race, party_cd) %>%
+  summarize(total_voters = sum(total_voters)) %>%
+  ungroup() %>%
+  group_by(party_cd) %>%
+  mutate(percentage = total_voters/sum(total_voters))
+
+race_plot <- ggplot(data = race2, aes(x=party_cd, y=percentage, fill = race)) +
+  geom_bar(stat = "identity", position = "dodge", color = "black") +
+  theme_bw() +
+  ylim(0, 1) +
+  labs(x="Party", y="Percentage of Registered Voters", fill = "Race") +
+  scale_fill_discrete(labels=c("B", "O", "W")) +
+  facet_wrap(~"Party Registration by Race")
+
+race_plot
+```
+
+
+```{r}
+# Explore Ethnic Code
+hisp <- df_select %>%
+  group_by(ethnicity, party_cd) %>%
+  summarise(total_voters = sum(total_voters)) %>%
+  ungroup() %>%
+  group_by(ethnicity) %>%
+  mutate(percentage = total_voters/sum(total_voters))
+
+ggplot(data = hisp, aes(x=ethnicity, y=percentage, fill = party_cd)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  theme_bw()
+
+hisp2 <- df_select %>%
+  group_by(ethnicity, party_cd) %>%
+  summarize(total_voters = sum(total_voters)) %>%
+  ungroup() %>%
+  group_by(party_cd) %>%
+  mutate(percentage = total_voters/sum(total_voters))
+
+eth_plot <- ggplot(data = hisp2, aes(x=party_cd, y=percentage, 
+                                     fill = ethnicity)) +
+  geom_bar(stat = "identity", position = "dodge", color = "black") +
+  ylim(0, 1) +
+  theme_bw() +
+  labs(x="Party", y="Percentage of Registered Voters", fill = "Ethnicity") +
+  scale_fill_discrete(labels=c("H", "NH")) +
+  facet_wrap(~"Party Registration by Ethnicity")
+
+eth_plot
+```
+
+```{r}
+remove_y <- theme(
+  axis.text.y = element_blank(),
+  axis.ticks.y = element_blank(),
+  axis.title.y = element_blank())
+
+ggarrange(sex_plot, age_plot + remove_y, race_plot + remove_y, eth_plot + remove_y, nrow = 1)
+```
+
+
+```{r, fig.width=8}
+# Explore County
+
+county_pct <- df_select %>%
+  group_by(county_desc) %>%
+  summarise(x = sum(total_voters)/sum(Freq)) 
+  
+
+ggplot(county_pct, aes(x = county_desc, y = x)) +
+  geom_bar(stat = "identity", color = "black", alpha = .8) +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+  ylim(0, 1) +
+  facet_wrap(~"Voter Registration Rate by County") +
+  labs(x= "County", y= "Registration Rate")
+
+df_select %>%
+  filter(county_desc %in% c("DUPLIN", "HYDE", "ONSLOW", "IREDELL", "MADISON")) %>%
+  group_by(county_desc, party_cd) %>%
+  summarise(sum(total_voters))
+```
+
+```{r}
+# Sex within affiliation
+sex_aff <- df_select %>%
+  group_by(sex, party_cd) %>%
+  summarise(x = sum(total_voters)/sum(Freq)) 
+
+sexplot2 <- ggplot(data = sex_aff, aes(x=party_cd, y=x, fill = sex)) +
+  geom_bar(stat = "identity", position = "dodge", color = "black") +
+  theme_bw() +
+  ylim(0, 1) +
+  scale_fill_discrete(labels=c("F", "M")) +
+  facet_wrap(~"Party Registration Rate by Sex") +
+  labs(x= "Party", y= "Registration Rate", fill = "Sex")
+
+sexplot2
+```
+
+```{r}
+# Race within affiliation
+race_aff <- df_select %>%
+  group_by(race, party_cd) %>%
+  summarise(x = sum(total_voters)/sum(Freq)) 
+
+raceplot2 <- ggplot(data = race_aff, aes(x=party_cd, y=x, fill = race)) +
+  geom_bar(stat = "identity", position = "dodge", color = "black") +
+  theme_bw() +
+  ylim(0, 1) +
+  scale_fill_discrete(labels=c("B", "O", "W")) +
+  facet_wrap(~"Party Registration Rate by Race") +
+  labs(x= "Party", y= "Registration Rate", fill = "Race")
+
+raceplot2
+```
+
+
+```{r}
+# Age within affiliation
+age_aff <- df_select %>%
+  group_by(age, party_cd) %>%
+  summarise(x = sum(total_voters)/sum(Freq)) 
+
+ageplot2 <- ggplot(data = age_aff, aes(x=party_cd, y=x, fill = age)) +
+  geom_bar(stat = "identity", position = "dodge", color = "black") +
+  theme_bw() +
+  ylim(0, 1) +
+  facet_wrap(~"Party Registration Rate by Age") +
+  labs(x= "Party", y= "Registration Rate", fill = "Age")
+
+ageplot2
+```
+
+
+```{r}
+# Ethnicity within affiliation
+eth_aff <- df_select %>%
+  group_by(ethnicity, party_cd) %>%
+  summarise(x = sum(total_voters)/sum(Freq)) 
+
+ethplot2 <- ggplot(data = eth_aff, aes(x=party_cd, y=x, fill = ethnicity)) +
+  geom_bar(stat = "identity", position = "dodge", color = "black") +
+  theme_bw() +
+  ylim(0, 1) +
+  scale_fill_discrete(labels=c("H", "NH")) +
+  facet_wrap(~"Party Registration Rate by Ethnicity") +
+  labs(x= "Party", y= "Registration Rate", fill = "Ethnicity")
+
+ethplot2
+```
+
+
+
+```{r}
+# Modeling
+
+set.seed(45)
+
+
+fit3 <- brm(data = df_select, family = binomial,
+            formula = total_voters | trials(Freq) ~ sex + race + party_cd + age +
+                      ethnicity + (1| county_desc),
+            prior = c(prior(normal(0, 10), class = Intercept),
+            prior(normal(0, 1), class = b),
+            prior(cauchy(0, 1), class = sd)),
+            iter = 2500, warmup = 500, cores = 2, chains = 2,seed = 10)
+
+summary(fit3)
+
+post <- posterior_samples(fit3)
+
+
+```
+
+```{r}
+# County model output
+
+county_hist <- post[,12:41]
+
+melt_county_hist <- melt(county_hist)
+
+melt_county_hist$variable <- str_sub(melt_county_hist$variable, 15, str_length(melt_county_hist$variable)-11)
+
+ggplot(melt_county_hist, aes(x = reorder(variable, -value), y = value)) +
+  geom_boxplot() +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  labs(x="County", y="Probability Odds") +
+  facet_wrap(~"Log Odds of Registering to Vote by County")
+
+```
+
+
+```{r}
+# model fit/posterior predictive checks
+set.seed(45)
+out <- predict(fit3, summary = FALSE)
+
+t(out)[5, 1:10]
+df_select[5,]
+
+nrow(df_select)
+
+
+yij_hat <- colMeans(out)
+eij <- df_select$total_voters - yij_hat
+
+resid_m1 <- as.data.frame(cbind(yij_hat, eij))
+
+plot(yij_hat, eij, xlim = c(0, 8000)) 
+
+res <- ggplot(data = resid_m1, aes(x = yij_hat, y = eij)) +
+  geom_point() +
+  theme_bw() +
+  geom_hline(yintercept = 1, color = "red") +
+  labs(x="Fitted Values", y="Residuals") +
+  facet_wrap(~"Fitted Values vs. Residuals")
+
+
+sim_all <- as.data.frame(colSums(out))
+tot_all <- sum(df_select$total_voters)
+
+
+m1fit <- ggplot(data = sim_all, aes(x=log(`colSums(out)`))) +
+  geom_histogram(color = "black", alpha = .8) +
+  geom_vline(xintercept = log(tot_all), color = "red") +
+  labs(x="Log(Predicted Total Voters)", y="Count") +
+  facet_wrap(~"Log(Predicted Total Voters) vs. True Total Voters") +
+  theme_bw()
+
+ggarrange(res, m1fit, nrow = 1)
+```
+
+
+```{r}
+# republican model
+set.seed(45)
+fit_r <-  brm(data = df_select %>% filter(party_cd == "REP"), family = binomial,
+            formula = total_voters | trials(Freq) ~ 1 + sex + race + age + ethnicity +
+              (1 | county_desc),
+            prior = c(prior(normal(0, 10), class = Intercept),
+            prior(normal(0, 1), class = b),
+            prior(cauchy(0,1), class = sd)),
+            iter = 2500, warmup = 500, cores = 2, chains = 2,seed = 10)
+
+summary(fit_r)
+```
+
+
+
+```{r}
+# democrat model
+set.seed(45)
+
+fit_d <-  brm(data = df_select %>% filter(party_cd == "DEM"), family = binomial,
+            formula = total_voters | trials(Freq) ~ 1 + sex + race + age + ethnicity +
+              (1 | county_desc),
+            prior = c(prior(normal(0, 10), class = Intercept),
+            prior(normal(0, 1), class = b),
+            prior(cauchy(0,1), class = sd)),
+            iter = 2500, warmup = 500, cores = 2, chains = 2,seed = 10)
+
+summary(fit_d)
+```
+
+```{r}
+#unaffiliated model
+set.seed(45)
+
+fit_u <-  brm(data = df_select %>% filter(party_cd == "UNA"), family = binomial,
+            formula = total_voters | trials(Freq) ~ 1 + sex + race + age + ethnicity +
+              (1 | county_desc),
+            prior = c(prior(normal(0, 10), class = Intercept),
+            prior(normal(0, 1), class = b),
+            prior(cauchy(0,1), class = sd)),
+            iter = 2500, warmup = 500, cores = 2, chains = 2,seed = 10)
+
+summary(fit_u)
+```
+
+```{r}
+# sex and race posterior densisties
+set.seed(45)
+samp_r <- posterior_samples(fit_r)
+samp_d <- posterior_samples(fit_d)
+samp_u <- posterior_samples(fit_u)
+
+samp_all_s <- as.data.frame(cbind(samp_r$b_sexMale, samp_d$b_sexMale, samp_u$b_sexMale))
+
+melt_samp_s <- melt(samp_all_s)
+
+ggplot(melt_samp_s, aes(x=value, fill=variable)) +
+  geom_density() +
+  theme_bw()
+
+
+samp_all_r <- as.data.frame(cbind(samp_r$b_raceWhite, samp_d$b_raceWhite, samp_u$b_raceWhite))
+
+melt_samp_r <- melt(samp_all_r)
+
+ggplot(melt_samp_r, aes(x=value, fill=variable)) +
+  geom_density() +
+  theme_bw()
+```
+
+```{r}
+# model fit/posterior predictive checks
+
+id_rep <- which(df_select$party_cd == "REP")
+id_dem <- which(df_select$party_cd == "DEM")
+id_una <- which(df_select$party_cd == "UNA")
+
+
+sim_rep <- as.data.frame(colSums(out[,id_rep]))
+tot_rep <- sum(df_select$total_voters[id_rep])
+
+r <- ggplot(data = sim_rep, aes(x=log(`colSums(out[, id_rep])`))) +
+  geom_histogram(color = "red1", fill = "red4", alpha = .8) +
+  geom_vline(xintercept = log(tot_rep), color = "black") +
+  theme_bw() +
+  labs(x="Log(Predicted Total Voters)", y="Count") +
+  facet_wrap(~"Republican: Predicted vs. True Voters")
+
+sim_dem <- as.data.frame(colSums(out[,id_dem]))
+tot_dem <- sum(df_select$total_voters[id_dem])
+
+d <- ggplot(data = sim_dem, aes(x=log(`colSums(out[, id_dem])`))) +
+  geom_histogram(color = "deepskyblue", fill = "blue", alpha = .8) +
+  geom_vline(xintercept = log(tot_dem), color = "black") +
+  theme_bw() +
+  labs(x="Log(Predicted Total Voters)", y="Count") +
+  facet_wrap(~"Democrat: Predicted vs. True Voters")
+
+sim_una <- as.data.frame(colSums(out[,id_una]))
+tot_una <- sum(df_select$total_voters[id_una])
+
+u <- ggplot(data = sim_una, aes(x=log(`colSums(out[, id_una])`))) +
+  geom_histogram(color = "lightgray", fill = "darkgray") +
+  geom_vline(xintercept = log(tot_una), color = "black") +
+  theme_bw() +
+  labs(x="Log(Predicted Total Voters)", y="Count") +
+  facet_wrap(~"Unaffiliated: Predicted vs. True Voters")
+
+ggarrange(r, d, u)
+
+ggplot(data = as.data.frame(df_select$total_voters[id_dem]), aes(x=log(`df_select$total_voters[id_dem]`))) +
+  geom_histogram(color = "deepskyblue", fill = "blue", alpha = .8) +
+  geom_vline(xintercept = log(tot_dem), color = "black")
+```
+
+```{r}
+# model fit/posterior predictive checks
+yij_hatr <- colMeans(out[,id_rep])
+eijr <- df_select$total_voters[id_rep] - yij_hatr
+
+resid_mr <- as.data.frame(cbind(yij_hatr, eijr))
+
+res_r <- ggplot(data = resid_mr, aes(x = yij_hatr, y = eijr)) +
+  geom_point(color = "red4", alpha = .8) +
+  theme_bw() +
+  geom_hline(yintercept = 1, color = "black") +
+  labs(x="Fitted Values", y="Residuals") +
+  facet_wrap(~"Republican: Fitted Values vs. Residuals")
+
+yij_hatd <- colMeans(out[,id_dem])
+eijd <- df_select$total_voters[id_dem] - yij_hatd
+
+resid_md <- as.data.frame(cbind(yij_hatd, eijd))
+
+res_d <- ggplot(data = resid_md, aes(x = yij_hatd, y = eijd)) +
+  geom_point(color = "blue", alpha = .8) +
+  theme_bw() +
+  geom_hline(yintercept = 1, color = "black") +
+  labs(x="Fitted Values", y="Residuals") +
+  facet_wrap(~"Democrat: Fitted Values vs. Residuals")
+
+yij_hatu <- colMeans(out[,id_una])
+eiju <- df_select$total_voters[id_una] - yij_hatu
+
+resid_mu <- as.data.frame(cbind(yij_hatu, eiju))
+
+res_u <- ggplot(data = resid_mu, aes(x = yij_hatu, y = eiju)) +
+  geom_point(color = "gray") +
+  theme_bw() +
+  geom_hline(yintercept = 1, color = "black") +
+  labs(x="Fitted Values", y="Residuals") +
+  facet_wrap(~"Unaffiliated: Fitted Values vs. Residuals")
+
+res_u
+```
+
+
