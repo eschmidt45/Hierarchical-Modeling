@@ -1,0 +1,83 @@
+---
+title: "610_HW4"
+author: "Emma Schmidt"
+date: "2022-10-30"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+library(ggplot2)
+library(lme4)
+library(ggpubr)
+library(tibble)
+library(dplyr)
+```
+
+
+```{r}
+nfl <- read.csv("~/Desktop/Duke/610/NFL.csv")
+
+na_nfl <- na.omit(nfl)
+```
+
+
+
+$$y_i=\mu+\beta x_i+\epsilon_i$$
+
+$$y_i:Broad\ Jump\ (cm)\ \ \ \ x_i:Height\ (m)\ \ \ \ \epsilon_i \sim N(0, \sigma^2)$$
+
+$$\mu: \text{Intercept}\ \ \ \ \beta:\text{The change expected in broad jump distance (cm) per one unit (m) increase in height}$$
+
+Utilizing this model the scout comes back with the following results:
+$$y_i(Broad\ Jump\ (cm))=589.48-158.20 x_i(Height\ (m))$$
+
+```{r, fig.width=6, fig.height=4}
+lreg <- ggplot(data = na_nfl, aes(x=Height, y=Broad_Jump))+
+  geom_point() +
+  geom_smooth(method='lm') +
+  labs(title = "Regression Plot", x = "Athlete Height (m)",
+       y = "Athlete Broad Jump (cm)")
+```
+
+
+```{r}
+lr <- lm(Broad_Jump ~ Height, data = na_nfl)
+
+summary(lr)
+```
+
+
+```{r}
+ggplot(data = na_nfl, aes(x=Height, y=Broad_Jump))+
+  geom_point() +
+  geom_smooth(method='lm')
+```
+
+
+```{r}
+mix <- lmer(Broad_Jump ~ (1 + Height|Position_Type), data = na_nfl)
+
+summary(mix)
+
+coef(mix)$Position_Type
+
+model_coefs <- coef(mix)$Position_Type %>% 
+  rename(Intercept = `(Intercept)`, Slope = Height) %>%
+  rownames_to_column("Position_Type")
+
+merge <- left_join(na_nfl, model_coefs, by = "Position_Type")
+```
+
+```{r}
+mult <- ggplot(data = merge, aes(x = Height, y = Broad_Jump, colour = Position_Type)) +
+  geom_point(alpha = 0.5) +
+  geom_abline(aes(intercept = Intercept, slope = Slope, colour = Position_Type)) +
+  labs(title = "Multilevel Plot", x = "Athlete Height (m)", y = "Athlete Broad Jump (cm)")
+```
+
+```{r}
+ggarrange(lreg, mult, common.legend = T)
+```
+

@@ -1,0 +1,207 @@
+---
+title: "610_HW2"
+author: "Emma Schmidt"
+date: "9/19/2022"
+output: pdf_document
+fontsize: 11pt
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(invgamma)
+library(tidyverse)
+```
+
+
+# Question 1: Hierarchical Normal Model
+
+$$\text{Likelihood:}\ (y_{ij}| \mu_{j}, \sigma^2) \sim N(\mu_j,\sigma^2)\ \ \ i=1,...n_j\ \ \ j=1,...,J$$
+$$\text{Prior:}\ (\mu_j|\tau^2) \sim N(\mu, \tau^2)$$
+$$\text{Prior:}\ \sigma^2 \sim IG\left(\frac{\nu_0}{2}, \frac{\nu_0\sigma_0^2}{2}\right)$$
+$$\text{Prior:}\ \mu \sim N\left(\mu_0, \frac{\tau^2}{m_0}\right)$$
+
+$$\text{Prior:}\ \tau^2 \sim IG\left(\frac{m_0}{2}, \frac{m_0\tau_0^2}{2}\right)$$  
+
+  
+a) $$\text{Full-Conditional:}\ p(\mu_j|\mu_{-j}, \mu, Y, \sigma^2, \tau^2)$$
+
+$$\begin{aligned}p(\mu_j|-)\ \ &\propto\ \ \prod_{i=1}^{n_j} \frac{1}{\sigma\sqrt{2\pi}} \exp\left({-\frac{1}{2} \left(\frac{y_{ij}-\mu_j}{\sigma}\right)^2}\right)\cdot\ -\frac{1}{\tau\sqrt{2\pi}}\exp\left({-\frac{1}{2}\left(\frac{\mu_{j}-\mu}{\tau}\right)^2}\right) \\ &\propto\ \ \prod_{i=1}^{n_j}\exp\left({-\frac{1}{2}\left(\frac{y_{ij}-\mu_j}{\sigma}\right)^2}\right)\cdot\  \exp\left({-\frac{1}{2}\left(\frac{\mu_{j}-\mu}{\tau}\right)^2}\right) \\ &\propto\ \ \exp\left(\sum_{i=1}^{n_j}-\frac{1}{2}\left(\frac{y_{ij}-\mu_j}{\sigma}\right)^2-\frac{1}{2}\left(\frac{\mu_{j}-\mu}{\tau}\right)^2\right) \\ &\propto\ \ \exp\left({\frac{1}{\sigma^2}\sum_{i=1}^{n_j}(y_{ij}-\mu_j)^2+\frac{(\mu_{j}-\mu)^2}{\tau^2}}\right) \\ &\propto\ \ \exp\left(\frac{1}{\sigma^2}\sum_{i=1}^{n_j}(y_{ij}^2-2y_{ij}\mu_j+\mu_j^2)+\frac{\mu_j^2-2\mu_j\mu+\mu^2}{\tau^2}\right)\end{aligned}$$
+\pagebreak
+$$\begin{aligned} &\propto\ \ \exp\left(\frac{1}{\sigma^2}\left(-2n_j\bar{y}_j\mu_j+n_j\mu_j^2\right)+\frac{\mu_j^2-2\mu_j\mu}{\tau^2}\right) \\ &\propto\ \ \exp\left(-2\left(\frac{n_j\bar{y}_j}{\sigma^2}+\frac{\mu}{\tau^2}\right)\mu_j+\left(\frac{n_j}{\sigma^2}+\frac{1}{\tau^2}\right)\mu_j^2\right) \\ &\propto\ \ \exp\left(\left(\frac{n_j}{\sigma^2}+\frac{1}{\tau^2}\right)\left(\mu_j^2-2\left(\frac{\frac{n_j}{\sigma^2}\bar{y_j}+\frac{1}{\tau^2}\mu}{\frac{n_j}{\sigma^2}+\frac{1}{\tau^2}}\right)\mu_j\right)\right) \\ &\text{Let}\ v_j=\frac{1}{\frac{n_j}{\sigma^2}+\frac{1}{\tau^2}}\ \ \text{and}\ \ \ m_j =v_j\left(\frac{n_j}{\sigma^2}\bar{y}_j+\frac{1}{\tau^2}\mu\right),\ \ \text{then} \\ &\propto\ \ \exp\left(\frac{1}{v_j}(\mu_j^2-2m_j\mu_j)\right) \\ &\propto\ \ \exp\left(\frac{1}{v_j}(\mu_j^2-2m_j\mu_j+m_j^2+m_j^2)\right) \\ &\propto\ \ \exp\left(\frac{1}{v_j}(\mu_j-m_j)^2\right) \\ p(\mu_j|-)\ \ &\sim\ \ N(m_j, v_j)\end{aligned}$$
+
+b) $$\text{Full-Conditional:}\ p(\sigma^2|\mu_{1},..,\mu_J, \mu, Y,\tau^2)$$
+  
+$$\begin{aligned}p(\sigma^2|-)\ \ &\propto\ \ \prod_{j=1}^{J}\prod_{i=1}^{n_j} \frac{1}{\sigma\sqrt{2\pi}} \exp\left({-\frac{1}{2} \left(\frac{y_{ij}-\mu_j}{\sigma}\right)^2}\right)\cdot \frac{(\frac{v_0\sigma_0^2}{2})^{(\frac{v_0}{2})}}{\Gamma\left(\frac{v_0}{2}\right)}(\sigma^2)^{(-\frac{v_0}{2}-1)}\cdot\exp\left(-\left(\frac{\frac{v_0\sigma_0^2}{2}}{\sigma^2}\right)\right) \\ &\propto\ \ \prod_{j=1}^{J}\prod_{i=1}^{n_j}(\sigma)^{-\frac{1}{2}} \exp\left(\frac{-\frac{1}{2}(y_{ij}-\mu_j)^2}{\sigma^2}\right)\cdot(\sigma^2)^{(-\frac{v_0}{2}-1)}\cdot\exp\left(-\frac{1}{\sigma^2}\left(\frac{v_0\sigma_0^2}{2}\right)\right) \\ &\propto\ \ \left(\sigma^2\right)^{\left(-\frac{1}{2}\sum_{j=1}^Jn_j\right)}\cdot\exp\left(-\frac{1}{\sigma^2}\sum_{j=1}^J\sum_{i=1}^{n_j}\frac{(y_{ij}-\mu_j)^2}{2}\right)\cdot(\sigma^2)^{(-\frac{v_0}{2}-1)}\cdot\exp\left(-\frac{1}{\sigma^2}\left(\frac{v_0\sigma_0^2}{2}\right)\right) \\ &\propto\ \ (\sigma^2)^{\left(-\frac{1}{2}\sum_{j=1}^Jn_j-\frac{v_0}{2}-1\right)}\cdot\exp\left(-\frac{1}{\sigma^2}\sum_{j=1}^J\sum_{i=1}^{n_j}\frac{(y_{ij}-\mu_j)^2}{2}+\frac{v_0\sigma_0^2}{2}\right) \\ p(\sigma^2|-)\ \ &\sim\ \ IG\left(\frac{1}{2}\sum_{j=1}^Jn_j+\frac{v_0}{2},\ \frac{\sum_{j=1}^{J}\sum_{i=1}^{n_j}(y_{ij}-\mu_j)^2+v_0\sigma_0^2}{2}\right) \end{aligned}$$
+\pagebreak
+
+# Question 2: Unequal Variances by Group
+
+$$\text{Likelihood:}\ (y_{ij}| \mu_{j}, \sigma_j^2) \sim N(\mu_j,\sigma_j^2)\ \ \ i=1,...n_j\ \ \ j=1,...,J$$
+$$\text{Prior:}\ (\mu_j|\tau^2) \sim N(\mu, \tau^2)$$
+$$\text{Prior:}\ \sigma_j^2 \sim IG\left(\frac{\nu_0}{2}, \frac{\nu_0\sigma_0^2}{2}\right)$$
+$$\text{Prior:}\ \mu \sim N\left(\mu_0, \frac{\tau^2}{m_0}\right)$$
+$$\text{Prior:}\ \tau^2 \sim IG\left(\frac{m_0}{2}, \frac{m_0\tau_0^2}{2}\right)$$
+$$\text{Prior:}\ \sigma_0^2 \sim Gamma(a,b)$$
+$$\text{There is no conjugate form available for}\ v_0\ \text{the Hoff textbook recomends using:}$$
+$$p(v_0)\ \propto\ e^{-\rho v_0}\ for\ some\ \rho>0\ on\ (1,2,...)$$
+i) $$\text{Full-Conditional:}\ p(\mu_j|\mu_{-j}, \mu, Y, \sigma_1^2,...\sigma_J^2, \tau^2,\sigma_0^2,v_0)$$
+  
+$$\begin{aligned}p(\mu_j|-)\ \ &\propto\ \ \prod_{i=1}^{n_j} \frac{1}{\sigma_j\sqrt{2\pi}} \exp\left({-\frac{1}{2} \left(\frac{y_{ij}-\mu_j}{\sigma_j}\right)^2}\right)\cdot\ -\frac{1}{\tau\sqrt{2\pi}}\exp\left({-\frac{1}{2}\left(\frac{\mu_{j}-\mu}{\tau}\right)^2}\right) \\ &\propto\ \ \prod_{i=1}^{n_j}\exp\left({-\frac{1}{2}\left(\frac{y_{ij}-\mu_j}{\sigma_j}\right)^2}\right)\cdot\  \exp\left({-\frac{1}{2}\left(\frac{\mu_{j}-\mu}{\tau}\right)^2}\right) \\ &\propto\ \ \exp\left(\sum_{i=1}^{n_j}-\frac{1}{2}\left(\frac{y_{ij}-\mu_j}{\sigma_j}\right)^2-\frac{1}{2}\left(\frac{\mu_{j}-\mu}{\tau}\right)^2\right) \\ &\propto\ \ \exp\left({\frac{1}{\sigma_j^2}\sum_{i=1}^{n_j}(y_{ij}-\mu_j)^2+\frac{(\mu_{j}-\mu)^2}{\tau^2}}\right) \\ &\propto\ \ \exp\left(\frac{1}{\sigma_j^2}\sum_{i=1}^{n_j}(y_{ij}^2-2y_{ij}\mu_j+\mu_j^2)+\frac{\mu_j^2-2\mu_j\mu+\mu^2}{\tau^2}\right) \\ &\propto\ \ \exp\left(\frac{1}{\sigma_j^2}\left(-2n_j\bar{y}_j\mu_j+n_j\mu_j^2\right)+\frac{\mu_j^2-2\mu_j\mu}{\tau^2}\right) \\ &\propto\ \ \exp\left(-2\left(\frac{n_j\bar{y}_j}{\sigma_j^2}+\frac{\mu}{\tau^2}\right)\mu_j+\left(\frac{n_j}{\sigma_j^2}+\frac{1}{\tau^2}\right)\mu_j^2\right) \\ &\propto\ \ \exp\left(\left(\frac{n_j}{\sigma_j^2}+\frac{1}{\tau^2}\right)\left(\mu_j^2-2\left(\frac{\frac{n_j}{\sigma_j^2}\bar{y_j}+\frac{1}{\tau^2}\mu}{\frac{n_j}{\sigma_j^2}+\frac{1}{\tau^2}}\right)\mu_j\right)\right) \\ &\text{Let}\ v_j=\frac{1}{\frac{n_j}{\sigma_j^2}+\frac{1}{\tau^2}}\ \ \text{and}\ \ \ m_j =v_j\left(\frac{n_j}{\sigma_j^2}\bar{y}_j+\frac{1}{\tau^2}\mu\right),\ \ \text{then}\end{aligned}$$
+\pagebreak
+
+$$\begin{aligned}&\propto\ \ \exp\left(\frac{1}{v_j}(\mu_j^2-2m_j\mu_j)\right) \\ &\propto\ \ \exp\left(\frac{1}{v_j}(\mu_j^2-2m_j\mu_j+m_j^2+m_j^2)\right) \\ &\propto\ \ \exp\left(\frac{1}{v_j}(\mu_j-m_j)^2\right) \\ p(\mu_j|-)\ \ &\sim\ \ N(m_j, v_j)\end{aligned}$$
+
+ii) $$\text{Full-Conditional:}\ p(\sigma_j^2|\sigma_{-j}^2,\mu_{1},...,\mu_J, \mu, Y,\tau^2, \sigma_0^2,v_0)$$
+  
+$$\begin{aligned}p(\sigma_j^2|-)\ \ &\propto\ \ \prod_{i=1}^{n_j} \frac{1}{\sigma_j\sqrt{2\pi}} \exp\left({-\frac{1}{2} \left(\frac{y_{ij}-\mu_j}{\sigma_j}\right)^2}\right)\cdot \frac{(\frac{v_0\sigma_0^2}{2})^{(\frac{v_0}{2})}}{\Gamma\left(\frac{v_0}{2}\right)}(\sigma_j^2)^{(-\frac{v_0}{2}-1)}\cdot\exp\left(-\left(\frac{\frac{v_0\sigma_0^2}{2}}{\sigma_j^2}\right)\right) \\ &\propto\ \ \prod_{i=1}^{n_j}(\sigma_j)^{-\frac{1}{2}} \exp\left(\frac{-\frac{1}{2}(y_{ij}-\mu_j)^2}{\sigma_j^2}\right)\cdot(\sigma_j^2)^{(-\frac{v_0}{2}-1)}\cdot\exp\left(-\frac{1}{\sigma_j^2}\left(\frac{v_0\sigma_0^2}{2}\right)\right) \\ &\propto\ \ \left(\sigma_j^2\right)^{\left(-\frac{n_j}{2}\right)}\cdot\exp\left(-\frac{1}{\sigma_j^2}\sum_{i=1}^{n_j}\frac{(y_{ij}-\mu_j)^2}{2}\right)\cdot(\sigma_j^2)^{(-\frac{v_0}{2}-1)}\cdot\exp\left(-\frac{1}{\sigma_j^2}\left(\frac{v_0\sigma_0^2}{2}\right)\right) \\ &\propto\ \ (\sigma_j^2)^{\left(-\frac{n_j}{2}-\frac{v_0}{2}-1\right)}\cdot\exp\left(-\frac{1}{\sigma_j^2}\sum_{i=1}^{n_j}\frac{(y_{ij}-\mu_j)^2}{2}+\frac{v_0\sigma_0^2}{2}\right) \\ p(\sigma_j^2|-)\ \ &\sim\ \ IG\left(\frac{n_j+v_0}{2},\ \frac{\sum_{i=1}^{n_j}(y_{ij}-\mu_j)^2+v_0\sigma_0^2}{2}\right) \end{aligned}$$
+
+iii) $$\text{Full-Conditional:}\ p(\mu|\mu_{1},...,\mu_J, \sigma_1^2,...\sigma_J^2, Y,\tau^2,\sigma_0^2,v_0)$$
+  
+$$\begin{aligned}p(\mu|-)\ \ &\propto\ \ \prod_{j=1}^J\frac{1}{\tau\sqrt{2\pi}}\exp\left(-\frac{1}{2}\frac{(\mu_j-\mu)^2}{\tau^2}\right)\cdot\frac{1}{\sqrt{\frac{2\pi\tau^2}{m_0}}}\exp\left(-\frac{1}{2}\frac{(\mu-\mu_0)^2}{\frac{\tau^2}{m_0}}\right) \\ &\propto\ \ \prod_{j=1}^J\exp\left(-\frac{(\mu_j-\mu)^2}{2\tau^2}\right)\cdot\exp\left(-\frac{m_0(\mu-\mu_0)^2}{2\tau^2}\right) \\ &\propto\ \ \exp\left(-\frac{\sum_{j=1}^J(\mu_j-\mu)^2}{2\tau^2}\right)\cdot\exp\left(-\frac{m_0(\mu-\mu_0)^2}{2\tau^2}\right) \end{aligned}$$  
+\pagebreak
+
+$$\begin{aligned}&\propto\ \ \exp\left(-\frac{\sum_{j=1}^J(\mu_j-\mu)^2}{2\tau^2}-\frac{m_0(\mu-\mu_0)^2}{2\tau^2}\right) \\ &\propto\ \ \exp\left(\frac{-\sum_{j=1}^J\mu_j^2+2\mu\sum_{j=1}^J\mu_j-J\mu^2-m_0\mu^2+2m_0\mu\mu_0-m_0\mu_0^2}{2\tau^2}\right) \\ &\propto\ \ \exp\left(\frac{2\mu\sum_{j=1}^J\mu_j-J\mu^2-m_0\mu^2+2m_0\mu\mu_0}{2\tau^2}\right) \\ &\propto\ \ \exp\left(\frac{(-J-m_0)\mu^2+(2\sum_{j=1}^J\mu_j+2m_0\mu_0)\mu}{2\tau^2}\right) \\ &\propto\ \ \exp\left(\left(\frac{-J-m_0}{2\tau^2}\right)\left(\mu^2+\mu\left(\frac{2\sum_{j=1}^J\mu_j+2m_0\mu_0}{-J-m_0}\right)\right)\right) \\ \propto\ \ &\exp\left(\left(\frac{-(J+m_0)}{2\tau^2}\right) \left(\mu^2-\mu\left(\frac{2\sum_{j=1}^J\mu_j+2m_0\mu_0}{J+m_0}\right)+\left(\frac{\sum_{j=1}^J\mu_j+m_0\mu_0}{J+m_0}\right)^2-\left(\frac{\sum_{j=1}^J\mu_j+m_0\mu_0}{J+m_0}\right)^2\right)\right) \\ &\propto\ \ \exp\left(\left(\frac{-(J+m_0)}{2\tau^2}\right)\left(\mu-\frac{\sum_{j=1}^J\mu_j+m_0\mu_0}{J+m_0}\right)^2\right) \\ p(\mu|-)\ \ &\sim\ \ N\left(\frac{\sum_{j=1}^J\mu_j+m_0\mu_0}{J+m_0},\ \frac{\tau^2}{J+m_0}\right) \end{aligned}$$
+
+iv) $$\text{Full-Conditional:}\ p(\tau^2|\mu_{1},...,\mu_J, \sigma_1^2,...\sigma_J^2, Y,\mu,\sigma_0^2,v_0)$$
+  
+$$\begin{aligned}p(\tau^2|-)\ \ &\propto\ \ \prod_{j=1}^J\frac{1}{\tau\sqrt{2\pi}}\exp\left(-\frac{(\mu_j-\mu)^2}{2\tau^2}\right)\cdot\frac{1}{\sqrt{\frac{\tau^22\pi}{m_0}}}\exp\left(-\frac{m_0(\mu-\mu_0)^2}{2\tau^2}\right)\cdot\frac{\frac{m_0\tau_0^2}{2}}{\Gamma\frac{m_0}{2}}(\tau^2)^{-\frac{m_0}{2}-1}\exp\left(-\frac{\frac{m_0\tau_0^2}{2}}{\tau^2}\right) \\ &\propto\ \ \prod_{j=1}^J(\tau^2)^{-\frac{1}{2}}\exp\left(-\frac{(\mu_j-\mu)^2}{2\tau^2}\right)\cdot(\tau^2)^{-\frac{1}{2}}\exp\left(-\frac{m_0(\mu-\mu_0)^2}{2\tau^2}\right)\cdot(\tau^2)^{-\frac{m_0}{2}-1}\exp\left(-\frac{m_0\tau_0^2}{2\tau^2}\right) \\ &\propto\ \ (\tau^2)^{-\frac{J}{2}}\exp\left(-\frac{\sum_{j=1}^J(\mu_j-\mu)^2}{2\tau^2}\right)\cdot(\tau^2)^{-\frac{1}{2}}\exp\left(-\frac{m_0(\mu-\mu_0)^2}{2\tau^2}\right)\cdot(\tau^2)^{-\frac{m_0}{2}-1}\exp\left(-\frac{m_0\tau_0^2}{2\tau^2}\right) \\ &\propto\ \ (\tau^2)^{-\frac{J+m_0+1}{2}-1}\exp\left(-\frac{\sum_{j=1}^J(\mu_j-\mu)^2+m_0(\mu-\mu_0)^2+m_0\tau_0^2}{2\tau^2}\right) \\ p(\tau^2|-) &\sim\ \ IG\left(\frac{m_0+J+1}{2},\frac{\sum_{j=1}^J(\mu_j-\mu)^2+m_0(\mu-\mu_0)^2+m_0\tau_0^2}{2} \right)\end{aligned}$$
+
+\pagebreak
+
+v) $$\text{Full-Conditional:}\ p(\sigma_0^2|\mu_{1},...,\mu_J, \sigma_1^2,...\sigma_J^2, Y,\mu,\tau^2,v_0)$$
+  
+$$\begin{aligned}p(\sigma_0^2|-)\ \ &\propto\ \ \prod_{j=1}^J\left(\frac{v_0\sigma_0^2}{2}\right)^\frac{v_0}{2}\exp\left(-\frac{v_0\sigma_0^2}{2\sigma_j^2}\right)\cdot(\sigma_0^2)^{a-1}\exp(-b\sigma_0^2) \\ &\propto\ \ (\sigma_0^2)^{\frac{Jv_0}{2}+a-1}\exp\left(-\left(b+\frac{v_0}{2}\sum_{j=1}^J\frac{1}{\sigma_j^2}\right)\sigma_0^2\right) \\ p(\sigma_0^2|-) &\sim\ \ Gamma\left(a+\frac{Jv_0}{2},\ b + \frac{v_0}{2}\sum_{j=1}^J\frac{1}{\sigma_j^2}\right)\end{aligned}$$
+
+vi) $$\text{Full-Conditional:}\ p(v_0|\mu_{1},...,\mu_J, \sigma_1^2,...\sigma_J^2, Y,\mu,\tau^2,\sigma_0^2)$$
+  
+$$\begin{aligned}p(v_0|-)\ \ &\propto\ \ \left(\prod_{j=1}^J\left(\frac{\frac{v_0\sigma_0^2}{2}}{\Gamma\frac{v_0}{2}}\right)^{\frac{v_0}{2}}(\sigma_j^2)^{-\frac{v_0}{2}-1}\exp\left(-\frac{v_0\sigma_0^2}{2\sigma_j^2}\right)\right)\cdot\exp(-\rho v_o) \\ &\propto\ \ \left(\frac{v_0\sigma_0^2}{2}\right)^\frac{Jv_0}{2}\Gamma\left(\frac{v_0}{2}\right)^J\left(\prod_{j=1}^J\sigma_j^2\right)^{-\frac{v_0}{2}}\exp\left(-v_0\left(\rho+\frac{\sigma_0^2}{2}\sum_{j=1}^J\frac{1}{\sigma_j^2}\right)\right)\end{aligned}$$
+This is not a known distribution, but it can be discretized. We can do this by taking the density of a gamma and multiplying by the exponential portion (the first line of the full conditional). From there we can divide by the summation and sample from a grid of values with these probabilities. 
+
+\pagebreak
+
+# Question 3: R Function for Heterogeneous Variances
+```{r, echo=TRUE}
+# Function for sampling v0
+sample_v0 <- function(v0_grid, s02, sigma2j, rho) {
+  values <- rep(0, length(v0_grid))
+  for(k in 1:length(v0_grid)) {
+    v0 <- v0_grid[k]
+    values[k] <- sum(dinvgamma(sigma2j, v0/2, (v0*s02)/2), log=TRUE) - (rho*v0)
+  }
+  values <- exp(values-max(values))+max(values)
+  values <- values/(sum(values))
+  
+  v0 <- sample(v0_grid, size=1, prob=values)
+  
+  return(v0)
+}
+
+gibbs_norm <- function(Y, groups, iter= 10000, burn=1000, t02=1, mu0=0,
+                       m0=1, n0=1, a=1, b=1, rho=1) {
+  # Number of groups
+  J <- length(unique(groups))
+  # Store MUj, SIGMA2j, TAU2, MU, SIGMA20, V0
+  MUj <- matrix(NA, iter, J)
+  SIGMA2j <- matrix(NA, iter, J)
+  TAU2 <- rep(NA, iter)
+  MU <- rep(NA, iter)
+  SIGMA20 <- rep(NA, iter)
+  V0 <- rep(NA, iter)
+  
+  ybarj <- aggregate(Y, list(groups), mean)$x
+  nj <- table(groups)
+  group_names <- names(nj)
+  
+  # Initialize parameters
+  sigma2j <- rep(1,J)
+  tau2 <- 1
+  mu <- 0
+  muj <- rep(0, J)
+  s02 <- 1
+  v0 <- 1
+  v0_grid <- seq(0.01, 5, .01)
+  
+  for(r in 1:(iter+burn)) {
+    if(r%%1000 == 0) {
+      print(r)
+    }
+    # Sample MUj
+    for(j in 1:J) {
+      nuj <- 1/((nj[j]/sigma2j[j])+(1/tau2))
+      muj[j] <- rnorm(1, nuj*((nj[j]/sigma2j[j])*ybarj[j]+(1/tau2)*mu), sqrt(nuj))
+    }
+    # Sample SIGMA2j
+    for(j in 1:J) {
+      sigma2j[j] <- 1/rgamma(1, (v0+nj[j])/2, (v0*s02+sum((Y[groups == group_names[j]]-muj[j])^2))/2)
+    }
+    
+    
+    # Sample TAU2
+    tau2 <- 1/rgamma(1, (m0+J+1)/2, (m0*t02 + m0*(mu-mu0)^2+sum((muj-mu)^2))/2)
+    
+    # Sample MU
+    mu <- rnorm(1, (m0*mu0+sum(muj))/(mu0+J), sqrt(tau2/(m0+J)))
+    
+    # SIGMA20
+    s02 <- rgamma(1, a + (J*v0)/2, b + (v0/2)*sum((1/sigma2j)))
+    
+    #V0
+    v0 <-sample_v0(v0_grid, s02, sigma2j, rho)
+    
+    # Store values
+    if(r > burn) {
+      MUj[r-burn, ] <- muj
+      SIGMA2j[r-burn, ] <- sigma2j
+      TAU2[r-burn] <- tau2
+      MU[r-burn] <- mu
+      SIGMA20[r-burn] <- s02
+      V0[r-burn] <- v0
+      
+    }
+  }
+  return(list(MUj = MUj, SIGMA2j = SIGMA2j, TAU2 = TAU2, MU =MU, SIGMA20=SIGMA20,
+              V0=V0))
+}
+
+```
+
+
+```{r}
+radon <- read.table("http://www.stat.columbia.edu/~gelman/arm/examples/radon/srrs2.dat", 
+           header=TRUE, sep = ",")
+
+MN <- radon %>% 
+  filter(state == "MN")  %>%
+  select(county, activity)
+ 
+Y <- MN$activity
+groups <- MN$county
+```
+
+```{r, results='hide'}
+out <- gibbs_norm(Y, groups)
+```
+
+
+After running the Gibbs sampler, a plot of the error variances across Minnesota counties indicates that heterogeneous error variances are present in the radon data. This evident by the clear difference in boxplots from county to county, as seen in the plot below. 
+
+```{r, fig.height=10, fig.width=8}
+s02_df <- data.frame(out$SIGMA2j)
+colnames(s02_df) = sort(unique(groups))
+
+s02_df %>%
+  gather(key="County", value = "Sigma2j") %>%
+  filter(Sigma2j < 1000) %>%
+  ggplot(aes(x=County, y=Sigma2j))+geom_boxplot(outlier.size = .05)+coord_flip()+
+  labs(title = "Error Variance Across Minnesota Counties")
+```
+
+\pagebreak
+
+# Question 4: Correlation One
+
+I would propose a random effects model with the random effect being on school.  
+$$\text{Model:}\ y_{ij}=\mu_j(school)+\epsilon_{ij}$$
+$$\begin{aligned}\text{Assumptions:}(y_{ij}| \mu_{j}, \sigma_j^2) &\sim N(\mu_j,\sigma_j^2)\ \ \ i=1,...n_j\ \ \ j=1,...,J\ \\ \mu_j&\sim N(\mu,\ \tau^2) \\  \sigma_j^2&\sim IG\left(\frac{v_0}{2},\ \frac{v_0\sigma_0^2}{2}\right) \\ \mu&\sim N\left(\mu_0,\ \frac{\tau^2}{m_0}\right) \\ \tau^2&\sim IG\left(\frac{m_0}{2},\ \frac{m_0\tau_0^2}{2}\right)\end{aligned}$$
+
+The ranking on my model would be different than that of one just observing the mean from each school because I have accounted for different variances across schools. As mentioned in the problem, some of the schools have a large number of participants, while others have a much smaller pool. The schools that have larger sample sizes will have smaller variances than schools with smaller sample sizes. My model takes these differences into consideration. To employ my ranking system I would rank the schools by their posterior mean. To achieve an uncertainty quantification I would compute the probability that each school is among the best 10 in the country. This can be accomplished by ranking the schools in each iteration of the Gibbs sampler and calculating the average number of times each school falls in the top 10. I would expect that for most schools it would be 0. 

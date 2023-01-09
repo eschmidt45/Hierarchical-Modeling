@@ -1,0 +1,271 @@
+---
+title: "610_HW3"
+author: "Emma Schmidt"
+date: "2022-10-18"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+library(ggplot2)
+library(lme4)
+library(dplyr)
+library(tibble)
+library(lmerTest)
+library(brms)
+library(tidybayes)
+```
+
+
+```{r}
+dna <- read.table("~/Desktop/Duke/610/dnarepair.txt", header = TRUE)
+dna$HOSPITAL <- as.factor(dna$HOSPITAL)
+```
+
+# Question 1
+
+a)
+The first model is a simple linear regression model that explores the relationship between the DNA marker and cardiometabolic risk score. 
+
+$$y_i=\mu+\beta x_i+\epsilon_i$$
+$$\mu: \text{is the cardiometabolic risk when the marker value is 0}$$
+$$\beta:\text{is the change expected in in cardiametabolic risk per one of the marker}$$
+$$\epsilon_i \sim N(0, \sigma^2)$$
+
+```{r}
+reg <- lm(Y ~ X, data = dna)
+```
+
+b)
+To gather the estimates below I utilized a bootstrapping strategy: over 1000 iterations I sampled, ran the model, predicted the above and below values, and finally stored their difference. I averaged the results to get a point estimate, and used the quantile function to estimate the intervals. 
+```{r}
+iter <- 1000
+
+dif <- rep(NA, 1000)
+
+
+for(i in 1:iter) {
+  sample <- dna[sample(1:nrow(dna), nrow(dna), replace = T), ]
+  mod <- lm(Y ~ X, data = sample)
+  
+  above <- mean(sample$X) + sd(sample$X)
+  below <- mean(sample$X) - sd(sample$X)
+  
+  
+  pred_a <- predict(mod, data.frame(X=c(above)))[[1]]
+  pred_b <- predict(mod, data.frame(X=c(below)))[[1]]
+  
+  dif[i] <- pred_a - pred_b
+}
+
+
+print("Point Estimate:") 
+mean(dif)
+print("Confidence Interval:")
+quantile(dif, c(.025, .975))
+```
+
+
+c)
+```{r, fig.width=4, fig.height=3, fig.align='center'}
+ggplot(dna,aes(y = Y, x = X)) +
+  geom_point() +
+  geom_smooth(method='lm') +
+  labs(title = "Fitted Regression")
+```
+
+d)
+```{r, results='hide'}
+summary(reg)
+```
+
+According to the model, higher levels of the marker are associated with lower cardiometabolic risk. The evidence to support this claim comes from the model summary, where the intercept for the marker is -4.957 and is deemed statistically significant. However, a red flag is raised because the adjusted r-squared value is on .1392. This suggests that the marker does not explain very much of the variation in cardiometabolic risk and that this model may not be the right fit for the data.  
+
+
+# Question 2
+a)
+The second model is a random intercepts model that now that now takes into consideration hospital level differences in cardiometabolic risk. Specifically, this model includes a fixed effect on marker and random intercept on hospital.
+
+$$y_{ij}=\beta x_{ij}(Marker_{ij}) + \mu_j(Hospital_j)+\epsilon_{ij}$$
+
+$$\beta:\text{is the change expected in in cardiametabolic risk per one unit of the marker} $$
+
+$$\mu_j: \text{is the random intercept for each hospital}$$
+
+$$\mu_j = \mu +\alpha_j$$
+
+$$\mu_j \sim N(\mu,\tau^2)$$
+
+$$\epsilon_{ij}\sim N(0, \sigma^2)$$
+
+```{r, results='hide'}
+rint <- lmer(Y ~  X + (1 | HOSPITAL), data = dna)
+summary(rint)
+```
+
+b)
+The model indicates that the between hospital variation is 5729.80 and that the within hospital variation is 34.09. This means that heterogeniety between hospitals is a large contributor to the overall variance of the data, as it is much larger than the within hospital variation. 
+
+c)
+To gather the estimates below I again utilized a bootstrapping strategy: over 1000 iterations I sampled, ran the model, predicted the above and below values, and finally stored their difference. I averaged the results to get a point estimate, and used the quantile function to estimate the intervals. 
+
+```{r}
+iter <- 1000
+
+dif2 <- rep(NA, 1000)
+
+
+for(i in 1:iter) {
+  sample <- dna[sample(1:nrow(dna), nrow(dna), replace = T), ]
+  mod2 <- lmer(Y ~ X + (1 | HOSPITAL), data = sample)
+  
+  above <- mean(sample$X) + sd(sample$X)
+  below <- mean(sample$X) - sd(sample$X)
+  
+  coef <- summary(mod2)$coefficient["X", "Estimate"]
+  
+  pred_a <- above*coef
+  pred_b <- below*coef
+  
+  dif2[i] <- pred_a - pred_b
+}
+
+
+print("Point Estimate:") 
+mean(dif2)
+print("Confidence Interval:")
+quantile(dif2, c(.025, .975))
+```
+
+
+d)
+```{r}
+model_coefs <- coef(rint)$HOSPITAL %>% 
+  rename(Intercept = `(Intercept)`, Slope = X) %>%
+  rownames_to_column("HOSPITAL")
+
+hosp_rani <- left_join(dna, model_coefs, by = "HOSPITAL")
+```
+
+
+```{r, fig.width=6, fig.height=4, fig.align='center'}
+ggplot(data = hosp_rani, aes(x = X, y = Y, colour = HOSPITAL)) +
+  geom_point(alpha = 0.5) +
+  geom_abline(aes(intercept = Intercept, slope = Slope, colour = HOSPITAL)) +
+  geom_abline(aes(intercept = 134.9782, slope = Slope, colour = "Grand mean")) +
+  scale_y_continuous(limits = c(0, 350)) +
+  labs(title = "Random Intercepts Model")
+
+```
+
+e)
+The new model contradicts the original findings that the marker was negatively correlated with cardiometabolic risk. Grouping by hospital reveals that the hospitals exhibit varying levels of cardiometabolic risk, and that the marker actually illustrates a positive correlation with cardiometabolic risk. In other words a higher DNA marker value is expected to increase cardiometabolic risk. Additionally, the severity of cardiometabolic risk varies between hospitals, for example we would expect a patient at hospital 9 to exhibit lower risk than a patient at hospital 1. These relationships can be seen in the plot above. 
+
+# QUESTION 3
+The population average slope that is most suitable to explain the data comes from the second model. In statistical terms, this is because there is a large presence of between hospital heterogeniety in the data that cannot be seen by exploring just the relationship of the marker and risk. In other words, different hospitals see varying degrees of cardiometabolic risk, and the first model does not consider these differences, and thus inaccurately portrays the relationship between the the DNA marker and cardiometabolic risk. The second model accounts for the differences amongst hospitals and paints a clearer picture of the data.
+
+# QUESTION 4
+a)
+The third model I employed has a random slope and a random intercept. This model allows us to explore not only the varying levels of cardiometabolic risk between hospitals, but also the allows us to explore the relationship between the DNA marker and risk across hospitals
+
+$$y_{ij}=\mu_j(Hospital_j)+\beta_jx_{ij}(Marker_{ij})+\epsilon_{ij}$$
+
+$$\mu_j:\text{is the random intercept for each hospital}$$
+
+$$\mu_j=\mu+\alpha_j$$
+
+$$\mu_j\sim N(\mu, \tau^2)$$
+
+$$\beta_j: \text{is the random slope for each hospital}$$
+
+$$\beta_j\sim N(0,\tau_\beta^2)$$
+
+$$\epsilon_{ij}\sim N(0, \sigma^2)$$
+
+```{r, results='hide'}
+rslope2 <- brm(Y ~  (1 + X| HOSPITAL), data = dna, control = list(adapt_delta = .99))
+
+```
+
+b)
+The estimates below are calculated by extracting coefficients from the posterior and calculating the respective difference values for each hospital. 
+
+```{r}
+hosp <- data.frame(coefficients(rslope2))
+
+est_df <- data.frame(Hospital = rep(0, 10),
+                     Point_Est = rep(0, 10),
+                     Lower_2.5 = rep(0,10),
+                     Upper_97.5 = rep(0,10))
+
+above <- mean(sample$X) + sd(sample$X)
+below <- mean(sample$X) - sd(sample$X)
+
+for(i in 1:10) {
+  est_df[i, 1] <- i
+  est_df[i, 2] <- above*hosp[i, 5] - below*hosp[i, 5]
+  est_df[i, 3] <- above*hosp[i, 7] - below*hosp[i, 7]
+  est_df[i, 4] <- above*hosp[i, 8] - below*hosp[i, 8]
+}
+
+knitr::kable(est_df)
+```
+
+c)
+```{r}
+model_coefs2 <- hosp %>% 
+  rename(Intercept = HOSPITAL.Estimate.Intercept, Slope = HOSPITAL.Estimate.X) %>%
+  rownames_to_column("HOSPITAL")
+
+dna3 <- left_join(dna, model_coefs2, by = "HOSPITAL")
+```
+
+```{r, fig.width=6, fig.height=4, fig.align='center'}
+ggplot(data = dna3, aes(x = X, y = Y, colour = HOSPITAL)) +
+  geom_point(alpha = 0.5) +
+  geom_abline(aes(intercept = Intercept, slope = Slope, colour = HOSPITAL)) +
+  geom_abline(aes(intercept = mean(Intercept), slope = mean(Slope), colour = "Grand mean")) +
+  scale_y_continuous(limits = c(0, 350)) +
+  labs(title = "Random Slopes Model")
+```
+
+
+d) 
+The plot below suggests that there are likely significant differences between the association of DNA marker and cardiometabolic risk across hospitals. While most of the hospitals have overlapping 95% intervals for slope, hospital 1 and 7 stray from the pack, with hospital 1 exhibiting higher association and hospital 7 exhibiting lower association. We can see this significant difference by observing that the intervals for hospital 1 and 7 do not overlap with the intervals of many of the other hospitals. Additionally, the intervals do not contain the population mean slope value.
+
+```{r, fig.width=6, fig.height=4, fig.align='center'}
+
+ggplot(model_coefs2, aes(x=HOSPITAL, y = Slope, group = HOSPITAL)) +
+      geom_point() +
+      geom_errorbar(data=model_coefs2, aes(ymin=HOSPITAL.Q2.5.X,
+                                           ymax=HOSPITAL.Q97.5.X, 
+                                           color=HOSPITAL), width=.1) +
+      geom_hline(data = model_coefs2, aes(yintercept = mean(Slope)))
+```
+
+# Question 5
+To account for this pollutant, a natural and simple extension to the model in question 4 would be to add a fixed effect for the PM2.5 pollutant. This can be seen in statistical notation below:
+
+$$y_{ij}=\mu_j(Hospital_j)+\beta_jx_{ij}(Marker_{ij})+\gamma Z_j(PM2.5\ Pollutant_j)+ \epsilon_{ij}$$
+
+$$\mu_j:\text{is the random intercept for each hospital}$$
+
+$$\mu_j=\mu+\alpha_j$$
+
+$$\mu_j\sim N(\mu, \tau^2)$$
+
+$$\beta_j: \text{is the random slope for each hospital}$$
+
+$$\beta_j\sim N(0,\tau_\beta^2)$$
+
+$$\gamma:\text{is the change expected in in cardiametabolic risk per one unit of the polluntant} $$
+
+$$\epsilon_{ij}\sim N(0, \sigma^2)$$
+
+# Question 6
+In question 5 the model was modified to include a fixed effect for PM2.5, which makes sense in the case that PM2.5 behaves the same at each hospital. To test the hypothesis that this is not the case and that the chemical composition of PM2.5 varies from hospital to hospital, the model only needs one small modification. Now instead of a fixed effect, there would be one for each hospital. In other words, the model would now include a random slope for PM2.5 for each hospital. This can be seen below:
+
+$$y_{ij}=\mu_j(Hospital_j)+\beta_jx_{ij}(Marker_{ij})+\gamma_j Z_j(PM2.5\ Pollutant_j)+ \epsilon_{ij}$$
+
+As it currently stands only the average PM2.5 measurement for each hospital exists in the data. In order to adapt the model above the study would need to be modified in such a way that offers multiple measurements of the pollutant at each hospital. Then, much like our earlier exploration, we can use this model to explore the effect of the PM2.5 pollutant between and within each hospital. 
