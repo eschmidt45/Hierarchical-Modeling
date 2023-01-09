@@ -1,0 +1,409 @@
+---
+title: "Appendix"
+author: "Emma Schmidt"
+date: "2022-10-06"
+output: pdf_document
+fontsize: 11pt
+---
+```{r ref.label=knitr::all_labels(), echo=TRUE, eval=FALSE}
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(stringr)
+library(ggplot2)
+library(tidyr)
+library(lubridate)
+library(dplyr)
+library(data.table)
+library(lme4)
+library(ggpubr)
+library(stargazer)
+```
+
+
+```{r, results='hide'}
+# Read in the Data
+films <- read.csv("~/Desktop/Duke/610/United_States_Film_Releases_2019.csv")
+```
+
+```{r, results='hide'}
+# Data Preprocessing
+f_miss <- films[!(films$Box.Office == "N/A" | films$Budget == "N/A"), ]
+
+count(films[films$Budget == "N/A", ])
+
+f_miss$Box.Office <- as.numeric(gsub(",", "", gsub("$", "", f_miss$Box.Office,
+
+                                        fixed = TRUE)))/1e5
+
+f_miss$Budget <- as.numeric(gsub(",", "", gsub("$", "", f_miss$Budget,
+
+                                        fixed = TRUE)))/1e5
+
+unique_genre <- (unlist(str_split(f_miss$Genre, "/")))
+
+tot_genre <- table(gsub(" ", "", unique_genre, fixed = TRUE))
+
+unique_prod <- (unlist(str_split(f_miss$Production.Company, "/")))
+
+tot_prod <- table(gsub(" ", "", unique_prod, fixed = TRUE))
+
+max_dir <- max(table(f_miss['Director']))
+
+max_1 <- max(table(f_miss['Lead.Cast.1']))
+
+max_2 <- max(table(f_miss['Lead.Cast.2']))
+
+max_3 <- max(table(f_miss['Lead.Cast.3']))
+
+f_miss <- f_miss %>%
+  mutate(NetProfit = Box.Office - Budget,
+         LogBudget = log(Budget),
+         LogBoxOffice = log(Box.Office),
+         LogRatio = log(Box.Office) - log(Budget),
+         Month = month(mdy(f_miss$Release.Date..mmddyyyy)),
+         Horror = grepl("Horror", Genre),
+         Thriller = grepl("Thriller", Genre),
+         Drama = grepl("Drama", Genre),
+         Action = grepl("Action", Genre),
+         Comedy = grepl("Comedy", Genre),
+         `Other Genre` = !grepl("Horror|Thriller|Drama|Comedy|Action", Genre, fixed = FALSE),
+         `20th Century Fox` = grepl("20th Century Fox", Production.Company),
+         `Columbia` = grepl("Columbia Pictures", Production.Company),
+         Lionsgate = grepl("Lionsgate", Production.Company),
+         `Universal` = grepl("Universal Pictures", Production.Company),
+         `Warner Bros.` = grepl("Warner Bros. Pictures", Production.Company),
+         `Other Production` = !grepl("20th Century Fox|Columbia Pictures|Lionsgate|Universal Pictures|Warner Bros. Pictures", Production.Company, fixed = FALSE),
+         `Time Category` = case_when(Run.Time..minutes. < 90 ~ "< 90min", 
+                                   Run.Time..minutes. < 120 & Run.Time..minutes. >= 90 ~ "90min to 2h", 
+                                   Run.Time..minutes. < 150 & Run.Time..minutes. >= 120 ~ "2h to 2.30h",
+                                   Run.Time..minutes. >= 150 ~ ">2.30h"), 
+         `Time Category` = factor(`Time Category`,
+                                levels = c("< 90min", "90min to 2h", "2h to 2.30h", ">2.30h")),
+         Season = case_when(Month = 1 & Month <=3 ~ "Winter",
+                            Month >= 4 & Month <=6 ~ "Spring",
+                            Month >= 7 & Month <=9 ~ "Summer",
+                            Month >= 10 & Month <=12 ~ "Fall"))
+
+
+
+f_miss$Month[f_miss$Month == '5/'] = '05'
+
+f_miss$`Director Gender` <- "Male"
+ID_female <- c(8, 19, 23, 36, 38, 40,
+               41, 45, 48, 52, 59, 65, 79,
+               84, 90, 100, 105, 124, 131,
+               133, 136, 137,140,145, 153)
+f_miss$`Director Gender`[ID_female] <- "Female"
+f_miss$`Director Gender` <- as.factor(f_miss$`Director Gender`)
+
+
+names(f_miss)[names(f_miss) == 'Critic.Score..IMDB.x.10.'] <- 'Critic Score'
+```
+
+```{r}
+# Director Gender Plots
+d <- ggplot(data = f_miss, aes(x=`Director Gender`, y =NetProfit)) +
+      geom_boxplot(fill = "blue", alpha = 0.5) +
+      geom_hline(yintercept = 0, colour = "red") +
+      theme_bw() + 
+      facet_wrap(~"Net Profit by Director Gender")
+
+logd <- ggplot(data = f_miss, aes(x=`Director Gender`, y =LogRatio)) +
+      geom_boxplot(fill = "blue", alpha = 0.5) +
+      geom_hline(yintercept = 0, colour = "red") +
+      theme_bw() + 
+      facet_wrap(~"Log Ratio by Director Gender")
+
+d
+
+logd
+```
+
+
+```{r}
+# Season Plots
+season <- ggplot(data = f_miss, aes(x=Season, y =NetProfit)) +
+      geom_boxplot(fill = "blue", alpha = 0.5) +
+      geom_hline(yintercept = 0, colour = "red") +
+      theme_bw() + 
+      facet_wrap(~"Net Profit by Season")
+
+logseason <- ggplot(data = f_miss, aes(x=Season, y =LogRatio)) +
+      geom_boxplot(fill = "blue", alpha = 0.5) +
+      geom_hline(yintercept = 0, colour = "red") +
+      theme_bw() + 
+      facet_wrap(~"Log Ratio by Season")
+
+season
+
+logseason
+```
+
+
+```{r}
+# Time Category Plots
+
+t <- ggplot(data = f_miss, aes(x=`Time Category`, y =NetProfit)) +
+      geom_boxplot(fill = "blue", alpha = 0.5) +
+      geom_hline(yintercept = 0, colour = "red") +
+      theme_bw() + 
+      facet_wrap(~"Net Profit by Time Category")
+
+logt <- ggplot(data = f_miss, aes(x=`Time Category`, y =LogRatio)) +
+      geom_boxplot(fill = "blue", alpha = 0.5) +
+      geom_hline(yintercept = 0, colour = "red") +
+      theme_bw() + 
+      facet_wrap(~"Log Ratio by Time Category")
+
+t
+
+logt
+```
+
+  
+
+
+```{r, fig.dim=c(5,3), fig.align='center'}
+# Run time ungrouped plot
+
+rt <- ggplot(data = f_miss, aes(x= Run.Time..minutes., y = NetProfit)) +
+  geom_point(colour = "blue", alpha = .5) +
+  geom_hline(yintercept = 0, colour = "red") +
+  theme_bw() +
+  facet_wrap(~"Run Time vs. Net Profit")
+
+rt
+```
+
+
+```{r, fig.dim=c(5,3), fig.align='center'}
+# Budget Plot
+b <- ggplot(data = f_miss, aes(x= Budget, y = NetProfit)) +
+  geom_point(colour = "blue", alpha = .5) +
+  geom_hline(yintercept = 0, colour = "red") +
+  theme_bw() +
+  facet_wrap(~"Budget vs. Net Profit")
+
+b
+```
+
+```{r, fig.dim=c(5,3), fig.align='center'}
+# Critic Score Plot
+cs <- ggplot(data = f_miss, aes(x= `Critic Score`, y = NetProfit)) +
+        geom_point(colour = "blue", alpha = .5) +
+        geom_hline(yintercept = 0, colour = "red") +
+        theme_bw() +
+        facet_wrap(~"Critic Score vs. Net Profit")
+
+cs
+```
+
+
+```{r, fig.dim=c(5,3), fig.align='center'}
+# Month Plots
+m <- ggplot(data = f_miss, aes(x=Month, y =NetProfit)) +
+      geom_boxplot(fill = "blue", alpha = 0.5) +
+      geom_hline(yintercept = 0, colour = "red") +
+      theme_bw() + 
+      facet_wrap(~"Net Profit by Month")
+
+logm <- ggplot(data = f_miss, aes(x=Month, y =LogRatio)) +
+      geom_boxplot(fill = "blue", alpha = 0.5) +
+      geom_hline(yintercept = 0, colour = "red") +
+      theme_bw() + 
+      facet_wrap(~"Log Ratio by Month")
+
+m
+
+logm
+```
+
+
+```{r, fig.dim=c(5,3), fig.align='center'}
+# Genre Plots
+rbind(f_miss %>% filter(Horror == TRUE) %>% mutate(Type = "Horror"),
+      f_miss %>% filter(Thriller == TRUE) %>% mutate(Type = "Thriller"), 
+      f_miss %>% filter(Drama == TRUE) %>% mutate(Type = "Drama"),
+      f_miss %>% filter(Action == TRUE) %>% mutate(Type = "Action"), 
+      f_miss %>% filter(Comedy == TRUE) %>% mutate(Type = "Comedy"),
+      f_miss %>% filter(`Other Genre` == TRUE) %>% mutate(Type = "Other")) %>%
+      ggplot(aes(x=Type, y =NetProfit)) +
+        geom_boxplot(fill = "blue", alpha = 0.5) +
+        geom_hline(yintercept = 0, colour = "red") +
+        theme_bw() + 
+        facet_wrap(~"Net Profit by Genre Type")
+
+rbind(f_miss %>% filter(Horror == TRUE) %>% mutate(Type = "Horror"),
+      f_miss %>% filter(Thriller == TRUE) %>% mutate(Type = "Thriller"), 
+      f_miss %>% filter(Drama == TRUE) %>% mutate(Type = "Drama"),
+      f_miss %>% filter(Action == TRUE) %>% mutate(Type = "Action"), 
+      f_miss %>% filter(Comedy == TRUE) %>% mutate(Type = "Comedy"),
+      f_miss %>% filter(`Other Genre` == TRUE) %>% mutate(Type = "Other")) %>%
+      ggplot(aes(x=Type, y =LogRatio)) +
+        geom_boxplot(fill = "blue", alpha = 0.5) +
+        geom_hline(yintercept = 0, colour = "red") +
+        theme_bw() + 
+        facet_wrap(~"Log Ratio by Genre Type")
+
+```
+
+
+```{r}
+# Histogram and Production Company Plots
+phist1 <- ggplot(data=f_miss, aes(x=NetProfit)) + 
+  geom_histogram(fill = "blue",colour = "blue", alpha = .5, bins = 30) +
+  theme_bw() +
+  geom_vline(xintercept = 0, colour = "red") +
+  facet_wrap(~"Net Profit")
+
+phist2 <- ggplot(data=f_miss, aes(x=LogRatio)) + 
+  geom_histogram(fill = "blue", , colour = "blue", alpha = .5, bins = 30) +
+  theme_bw() +
+  geom_vline(xintercept = 0, colour = "red") +
+  facet_wrap(~"Log Ratio")
+
+ggarrange(phist1, phist2)
+
+rbind(f_miss %>% filter(`20th Century Fox` == TRUE) %>% mutate(Company = "20th Century Fox"),
+      f_miss %>% filter(`Columbia` == TRUE) %>% mutate(Company = "Columbia"), 
+      f_miss %>% filter(Lionsgate == TRUE) %>% mutate(Company = "Lionsgate"),
+      f_miss %>% filter(`Universal` == TRUE) %>% mutate(Company = "Universal"), 
+      f_miss %>% filter(`Warner Bros.` == TRUE) %>% mutate(Company = "Warner Bros."),
+      f_miss %>% filter(`Other Production` == TRUE) %>% mutate(Company = "Other")) %>%
+      ggplot(aes(x=Company, y =NetProfit)) +
+        geom_boxplot(fill = "blue", alpha = 0.5) +
+        geom_hline(yintercept = 0, colour = "red") +
+        theme_bw() + 
+        facet_wrap(~"Net Profit by Production Company")
+
+rbind(f_miss %>% filter(`20th Century Fox` == TRUE) %>% mutate(Company = "20th Century Fox"),
+      f_miss %>% filter(`Columbia` == TRUE) %>% mutate(Company = "Columbia"), 
+      f_miss %>% filter(Lionsgate == TRUE) %>% mutate(Company = "Lionsgate"),
+      f_miss %>% filter(`Universal` == TRUE) %>% mutate(Company = "Universal"), 
+      f_miss %>% filter(`Warner Bros.` == TRUE) %>% mutate(Company = "Warner Bros."),
+      f_miss %>% filter(`Other Production` == TRUE) %>% mutate(Company = "Other")) %>%
+      ggplot(aes(x=Company, y =LogRatio)) +
+        geom_boxplot(fill = "blue", alpha = 0.5) +
+        geom_hline(yintercept = 0, colour = "red") +
+        theme_bw() + 
+        facet_wrap(~"Log Ratio by Production Company")
+```
+
+```{r}
+# Scatterplots Budget and Critic Score Colored by Director Gender and Run Time
+ggplot(data = f_miss) +
+  geom_point(aes(x = `Critic Score` , y = NetProfit, colour = `Director Gender`)) +
+  geom_hline(yintercept = 0, col = "red") +
+  theme_bw() +
+  facet_wrap(~"Net Profit vs. Critic Score") +
+  scale_color_manual(values = c("black", "blue"))
+
+ggplot(data = f_miss) +
+  geom_point(aes(x = `Critic Score` , y = LogRatio, colour = `Director Gender`)) +
+  geom_hline(yintercept = 0, col = "red") +
+  theme_bw() +
+  facet_wrap(~"Log Ratio vs. Critic Score") +
+  scale_color_manual(values = c("black", "blue"))
+
+ggplot(data = f_miss) +
+  geom_point(aes(x = Budget, y = NetProfit, colour = `Director Gender`)) +
+  geom_hline(yintercept = 0, col = "red") +
+  theme_bw() +
+  facet_wrap(~"Net Profit vs. Budget") +
+  scale_color_manual(values = c("black", "blue"))
+
+ggplot(data = f_miss) +
+  geom_point(aes(x = LogBudget , y = LogRatio, colour = `Director Gender`)) +
+  geom_hline(yintercept = 0, col = "red") +
+  theme_bw() +
+  facet_wrap(~"Log Ratio vs. Log Budget") +
+  scale_color_manual(values = c("black", "blue"))
+
+p2 <- ggplot(data = f_miss) +
+  geom_point(aes(x = `Critic Score` , y = NetProfit, colour = `Time Category`)) +
+  geom_hline(yintercept = 0, col = "red") +
+  theme_bw() +
+  facet_wrap(~"Net Profit vs. Critic Score") +
+  scale_color_manual(values = c("azure4", "deepskyblue", "blue", "black"))
+
+p4<-ggplot(data = f_miss) +
+  geom_point(aes(x = `Critic Score` , y = LogRatio, colour = `Time Category`)) +
+  geom_hline(yintercept = 0, col = "red") +
+  theme_bw() +
+  facet_wrap(~"Log Ratio vs. Critic Score") +
+  scale_color_manual(values = c("black", "blue", "azure4", "deepskyblue"))
+
+p1 <- ggplot(data = f_miss) +
+  geom_point(aes(x = Budget, y = NetProfit, colour = `Time Category`)) +
+  geom_hline(yintercept = 0, col = "red") +
+  theme_bw() +
+  facet_wrap(~"Net Profit vs. Budget") +
+  scale_color_manual(values = c("azure4", "deepskyblue", "blue", "black"))
+
+p3 <-ggplot(data = f_miss) +
+  geom_point(aes(x = LogBudget , y = LogRatio, colour = `Time Category`)) +
+  geom_hline(yintercept = 0, col = "red") +
+  theme_bw() +
+  facet_wrap(~"Log Ratio vs. Log Budget") +
+  scale_color_manual(values = c("black", "blue", "azure4", "deepskyblue"))
+```
+
+```{r}
+# GG Arrange
+ggarrange(p1, p2, p3, p4, legend = "bottom", common.legend = T, nrow = 2, ncol = 2)
+```
+
+
+```{r, results='hide'}
+# Modeling
+data_reg <- f_miss %>%
+  select(NetProfit,
+         Budget, `Critic Score`, Horror, Thriller, Drama, Action, Comedy, `Other Genre`,
+         `20th Century Fox`, Columbia, Universal, `Warner Bros.`, Lionsgate,  
+         `Director Gender`, `Time Category`, Season)
+
+lreg <- lm(NetProfit ~ ., data= data_reg)
+
+summary(lreg)
+
+data_reg2 <- f_miss %>%
+  select(LogRatio,
+         LogBudget, `Critic Score`, `Director Gender`, `Time Category`, Season)
+
+lfit <- lmer(LogRatio ~ `Critic Score` + LogBudget + (1|`Time Category`), data = data_reg2)
+lfit2 <- lmer(LogRatio ~ `Critic Score` + LogBudget + `Director Gender` +  (1|`Time Category`), 
+              data = data_reg2)
+lfit3 <- lmer(LogRatio ~ `Critic Score` + LogBudget + `Director Gender` + (1|Season) + (1|`Time Category`), data = data_reg2)
+
+summary(lfit)
+summary(lfit2)
+summary(lfit3)
+
+
+random <- data.frame(Groups = c("Season", "Time Category", "Residual"),
+                     Name = c("(Intercept)", "(Intercept)", ""),
+                     `Model 1 Var` = c("", ".4135", "2.5291"),
+                     `Model 1 SD` = c("",".643", "1.590"),
+                     `Model 2 Var` = c("",".4108", "2.5439"),
+                     `Model 2 SD` = c("",".6409", "1.590"),
+                     `Model 3 Var` = c(".0319",".4035", "2.5192"),
+                     `Model 3 SD` = c(".1785",".6352", "1.5872"))
+
+knitr::kable(random)
+```
+
+
+
+
+```{r}
+# Model Fit
+plot(lfit3, xlab = "Fitted", ylab = "Residuals", main = "Fitted vs. Residuals")
+qqnorm(residuals(lfit3), col = "blue") 
+qqline(residuals(lfit3))
+
+plot(lreg)
+
+```
+
