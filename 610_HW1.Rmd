@@ -1,0 +1,212 @@
+---
+title: "610_HW1"
+author: "Emma Schmidt"
+date: "9/1/2022"
+output: pdf_document
+fontsize: 11pt
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+library(dplyr)
+library(ggplot2)
+library(tidyverse)
+load("~/Downloads/gotscreen.RData")
+```
+
+# Question 1: OLS Estimation
+
+a) $$\text{Consider the case of a single }\mu_j:$$
+$$\hat{\mu}_{j} = argmin_{\mu_{j}} \sum_{j=1}^{J} \sum_{i=1}^{n_{j}}(y_{ij}-\mu_{j})^2$$ 
+$$\frac{\partial}{\partial\mu_{j}} = 0\ \Rightarrow\ -2\sum_{i=1}^{n_{j}}(y_{ij}-\mu_{j})=0$$ 
+$$\sum_{i=1}^{n_{j}}y_{ij}=\sum_{i=1}^{n_{j}}\mu_{j}=n_{j}\mu_{j}$$
+$$\Rightarrow\ \hat{\mu_{j}}=\frac{1}{n_{j}}\sum_{i=1}^{n_{j}}y_{ij}=\bar{y_{j}}$$
+$$\text{By symmetry this result holds for all}\ \mu_{j's}$$
+
+b)
+  i. $$\hat{\mu} = argmin_{\mu} \sum_{j=1}^{J} \sum_{i=1}^{n}(y_{ij}-\mu-\alpha_{j})^2$$
+     $$\frac{\partial}{\partial\mu}=0\ \Rightarrow\ -2\sum_{j=1}^{J}\sum_{i=1}^{n}(y_{ij}-\mu-\alpha_{j})=0$$
+    $$\sum_{j=1}^{J}\sum_{i=1}^{n}y_{ij}\ -\ (nJ\mu)\ -\ n\sum_{j=1}^{J}\alpha_{j}=0$$
+    $$\sum_{j=1}^{J}\sum_{i=1}^{n}y_{ij} = nJ\mu$$
+    $$\Rightarrow \hat{\mu} = \frac{\sum_{j=1}^{J}\sum_{i=1}^{n}y_{ij}}{nJ}=\bar{y}..$$
+
+  ii. $$\frac{1}{J}\sum_{j=1}^{J}\hat{\mu}_{j}=\frac{1}{J}\sum_{j=1}^{J}\bar{y}_{j}=\frac{1}{nJ}\sum_{j=1}^{J}\sum_{i=1}^{n}y_{ij}=\bar{y}..$$
+
+  iii. $$\text{Consider the case of a single } \alpha_j:$$
+       $$\hat{\alpha}_{j}=argmin_{\alpha_{j}}\sum_{j=1}^{J}\sum_{i=1}^{n}(y_{ij}-\mu-\alpha_j)^2$$
+       $$\frac{\partial}{\partial\alpha_{j}}=0\ \Rightarrow\ -2\sum_{i=1}^{n}(y_{ij}-\mu-\alpha_{j})=0$$
+       $$\sum_{i=1}^{n}y_{ij}-n\mu-n\alpha_{j}=0$$
+       $$\sum_{i=1}^{n}y_{ij}-n\mu=n\alpha_{j}$$
+       $$\Rightarrow\ \hat{\alpha}_{j}=\frac{\sum_{i=1}^{n}y_{ij}}{n}-\hat{\mu}\ =\ \hat{\mu_{j}}-\hat{\mu}\
+       =\ \bar{y}_{j}-\bar{y}..$$
+       $$\text{By symmetry this result holds for all } \alpha_{j's}$$
+
+c) $$y=\begin{bmatrix}y_{11}\\y_{12}\\y_{13}\\y_{21}\\y_{22}\\y_{23}\\y_{31}\\y_{32}\\y_{33}\end{bmatrix}\ x =\begin{bmatrix}1&0&0\\1&0&0\\1&0&0\\0&1&0\\0&1&0\\0&1&0\\0&0&1\\0&0&1\\0&0&1 \end{bmatrix}\ \mu=\begin{bmatrix}\mu_1\\\mu_2\\\mu_3\end{bmatrix}$$
+
+$$solve\ (X^TX)^{-1}X^Ty$$
+
+$$(X^TX) = \begin{bmatrix} 1&1&1&0&0&0&0&0&0\\0&0&0&1&1&1&0&0&0\\0&0&0&0&0&0&1&1&1\end{bmatrix}*
+\begin{bmatrix}1&0&0\\1&0&0\\1&0&0\\0&1&0\\0&1&0\\0&1&0\\0&0&1\\0&0&1\\0&0&1\end{bmatrix}=
+\begin{bmatrix}3&0&0\\0&3&0\\0&0&3\end{bmatrix},\ (X^TX)^{-1}=\begin{bmatrix}\frac{1}{3}&0&0\\
+0&\frac{1}{3}&0\\0&0&\frac{1}{3}\end{bmatrix}$$
+
+$$X^Ty=\begin{bmatrix}1&1&1&0&0&0&0&0&0\\0&0&0&1&1&1&0&0&0\\0&0&0&0&0&0&1&1&1\end{bmatrix}*
+\begin{bmatrix}y_{11}\\y_{12}\\y_{13}\\y_{21}\\y_{22}\\y_{23}\\y_{31}\\y_{32}\\y_{33}\end{bmatrix}=
+\begin{bmatrix}y_{11}+y_{12}+y_{13}\\y_{21}+y_{22}+y_{23}\\y_{31}+y_{32}+y_{33} \end{bmatrix}$$
+
+$$(X^TX)^{-1}X^Ty=\begin{bmatrix}\frac{1}{3}&0&0\\
+0&\frac{1}{3}&0\\0&0&\frac{1}{3}\end{bmatrix}*\begin{bmatrix}y_{11}+y_{12}+y_{13}\\y_{21}+y_{22}+y_{23}\\y_{31}+y_{32}+y_{33} \end{bmatrix}=\begin{bmatrix}\frac{y_{11}+y_{12}+y_{13}}{3}\\\frac{y_{21}+y_{22}+y_{23}}{3}
+\\\frac{y_{31}+y_{32}+y_{33}}{3}\end{bmatrix}=\begin{bmatrix}\bar{y}_1\\\bar{y}_2\\\bar{y}_3\end{bmatrix}$$
+
+# Question 2: Game of Thrones
+
+2.1: Exploratory data analysis of screentime, including average screentime per gender as well as total screentime for all actors of a given gender.   
+
+```{r}
+gotscreen$Season <- as.factor(gotscreen$Season)
+
+avg_screentime <- gotscreen %>%
+  group_by(Gender, Season) %>%
+  summarize(Avg_Screentime = mean(seccount)) %>%
+  pivot_wider(names_from = Gender, values_from = Avg_Screentime)
+
+total_screentime <- gotscreen %>%
+  group_by(Gender, Season) %>%
+  summarize(Total_Screentime = sum(seccount)) %>%
+  pivot_wider(names_from = Gender, values_from = Total_Screentime)
+
+ggplot(data=gotscreen, aes(x=Season, y=seccount, color=Gender)) +
+  geom_boxplot() +
+  labs(title = "Second Count by Gender across Season") +
+  ylab("Second Count")
+
+plot_total <- gotscreen %>%
+  group_by(Gender, Season) %>%
+  summarize(Total_Screentime = sum(seccount))
+
+knitr::kable(total_screentime, caption = "Total Screentime")
+
+ggplot(data=plot_total, aes(x=Season, y=Total_Screentime, color=Gender)) +
+  geom_point() +
+  labs(title = "Total Second Count by Gender across Season") +
+  ylab("Total Second Count")
+
+plot_avg <-  gotscreen %>%
+  group_by(Gender, Season) %>%
+  summarize(Avg_Screentime = mean(seccount))
+
+ggplot(data=plot_avg, aes(x=Season, y=Avg_Screentime, color=Gender)) +
+  geom_point() +
+  labs(title = "Average Second Count by Gender across Season") +
+  ylab("Average Second Count")
+
+knitr::kable(avg_screentime, caption="Average Screentime")
+```
+
+2.2: A clear specification of the model using an equation, including clear specification of any modeling assumptions.
+$$y_{ijk} = \mu + \alpha_j I(Season=j) + \beta_k I(Gender=k)  + \gamma_{jk} I(Season=j\ and\ Gender=k) + \epsilon_{ijk}$$
+$$Assumptions:\ \alpha_1=0,\ \beta_1=0,\ \gamma_{j1}=0\ \forall\ j=1,..,J,\ \gamma_{1k}=0\ \forall\ k=1,..,K, \ \ \epsilon_{ijk}\sim N(0,\sigma^2)$$
+
+2.3: A clearly-labeled table providing point and interval estimates for each parameter in the linear predictor of your model. 
+
+```{r, results='hide'}
+aov.res <- aov(seccount ~ Season*Gender, data = gotscreen)
+aov.res$coefficients
+confint(aov.res)
+```
+
+```{r}
+sum_df <- data.frame(Parameters = c('Intercept', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'Male',
+                                    'Unsp', 'S2:Male', 'S3:Male', 'S4:Male', 'S5:Male', 'S6:Male',
+                                    'S7:Male', 'S2:Unsp', 'S3:Unsp', 'S4:Unsp', 'S5:Unsp',
+                                    'S6:Unsp', 'S7:Unsp'),
+                     Coefficients=c(3390.80, -750.00, -226.80, -656.90, -583.00, -650.10,
+                                    341.91, 6799.90, -1992.60, -3661.10, -3249.70, -2468.30,
+                                    -3956.00, -3645.70, -1606.33, 600.50, -321.50, 261.10,
+                                    661.20, 1578.30, -296.11),
+                     Lowerbound_2.5 = c(2468.83, -2053.87, -1530.67, -1960.77, -1886.87, -1953.97,
+                                    -1094.88, 5496.03, -3296.47, -5505.05, -5093.65, -4312.25,
+                                    -5799.95, -5489.65, -3638.26, -1243.45, -2165.45, -1582.85,
+                                    -1182.75, -265.65, -2328.05),
+                     Upperbound_97.5 = c(4312.77, 553.87, 1077.07, 646.97, 720.87, 653.77,
+                                         1778.71, 8103.77, -688.73, -1817.15, -1405.75, -624.35,
+                                         -2112.05, -1801.75, 425.60, 2444.45, 1522.45, 2105.05,
+                                         2505.15, 3422.25, 1735.82))
+knitr::kable(sum_df, caption = 'Parameter Estimates')
+```
+
+2.4: Clear specification of any hypothesis tests or other inferential techniques used to evaluate the questions posed above.  
+
+The summary F statistics as well as p-values from the output of the ANOVA summary are statistically significant for all three parameters, with gender being overwhelmingly significant. This leads to a rejection of the null hypothesis that there is no difference across groups. Point and interval estimates of parameters and Tukey means were used to highlight specific points of interest in evaluating the question at hand. Interval estimates that did not include 0, helped identify which parameters and comparisons were of specific importance. Season to season differences and differences in interaction terms that did not differ in gender did not appear to be significant. The differences between groups that standout as statistically significant are those that contain male vs female comparisons and male vs unspecified comparisons. Specifically, males are spending a lot more time on screen than both female and unspecified characters, and this trend holds regardless of season.
+
+```{r}
+summary(aov.res)
+TukeyHSD(aov.res)
+```
+
+2.5: Evidence of adequacy of model fit and evaluation of suitability of any assumptions.  
+
+Our model fit is adequate, and our assumptions are suitable. The Residuals vs Fitted plot suggests that the residuals roughly fit a linear pattern. The QQ-Plot has slight deviation in the tails suggesting some skewness, but overall it seems that the residuals fall in line with a normal distribution. The Scale-Location plot shows a moderately flat line, which indicates equal variance. Finally, the Residuals vs Leverage plot shows no points of heavy influence, as no points fall outside of the dashed red lines (Cook's Distance).
+
+```{r}
+par(mfrow = c(2,2))
+got_lm <- lm(seccount~Season*Gender, gotscreen)
+plot(got_lm)
+```
+
+2.6: Clear description of results in language accessible to the average fan of the show, including graphical displays as appropriate. Comment on any insights that may differ between exploratory data analysis and analysis using the ANOVA model, along with reasons why these insights may differ.
+
+The results of my analysis suggest that male actors spend significantly more time on the screen than their female and unspecified counterparts. Season to season the exploratory data analysis demonstrates that this seems to be a common theme across all seasons. Season 1 shows slightly more male dominance, but the other 6 seasons are fairly consistent. The ANOVA output indicates season as statistically significant, but as mentioned above this is not obvious in the EDA/Tukey Output. This is likely because Tukey adjusts for multiple comparisons whereas the ANOVA output does not. The plots below reiterates my conclusion above that male actors dominate the screentime both seasonally and over the series as a whole.  
+
+```{r}
+ggplot(data=gotscreen, aes(x=Season, y=seccount, fill=Gender)) +
+  geom_bar(stat = 'identity') +
+  labs(title = "Second Count by Gender across Season") +
+  ylab("Second Count")
+
+plot_total2 <- gotscreen %>%
+  group_by(Gender) %>%
+  summarize(Total_Screentime = sum(seccount))
+
+ggplot(data=plot_total2, aes(x=Gender, y=Total_Screentime, fill=Gender)) +
+  geom_bar(stat = 'identity') +
+  labs(title = "Second Count by Gender") +
+  ylab("Second Count")
+```
+
+# Question 3: Contrasts
+
+a)$$Model\ 1: y_{ij}=\mu_j+\epsilon_{ij}$$
+$$Model\ 2: y_{ij}=\mu+\alpha_1I(j=1)+\alpha_2I(j=2)+\epsilon_{ij}$$
+
+$$\mu_1=\mu+\alpha_1$$
+$$\mu_2=\mu+\alpha_2$$
+$$\mu_3=\mu$$
+
+$$\mu_1-\mu_2 = \alpha_1-\alpha_2,\ \mu_1-\mu_3=\alpha_1,\ \mu_2-\mu_3=\alpha_2$$
+
+b)$$Model\ 1: \mu_{1}=7096.269,\ \ \mu_2=1389.970,\ \ \mu_3=2998.642$$
+$$Model\ 2: \mu=2998.642,\ \ \alpha_1=4097.627,\ \ \alpha_2=-1608.672$$
+$$\begin{aligned}\mu_1-\mu_2&=\alpha_1-\alpha_2\ \Rightarrow 7096.269-1389.970=5706.299,\ 4097.627-(-1608.672)=5706.299\\\mu_1-\mu_3&=\alpha_1 \Rightarrow
+7096.269-2998.642=4097.627,\ 4097.627\\\mu_2-\mu_3&=\alpha_2\ \Rightarrow 1389.970-2998.642=
+-1608.672, -1608.672\end{aligned}$$
+
+```{r, results='hide'}
+an1 <- aov(seccount ~ Gender, data = gotscreen)
+an2 <- aov(seccount ~ Gender - 1, data = gotscreen)
+
+an2$coefficients
+an1$coefficients
+```
+
+# Question 4
+
+$$Proof\ by\ Contradiction:$$
+$$Suppose:\ X\sim N(0,1),\ \ \ \ \ Z=\begin{cases}1&w.p.\ 0.5\\-1&w.p.\ 0.5\end{cases}\ \ \ \ \ Y=ZX $$
+$$\begin{aligned}Pr(Y\leq x)&=E(Pr(Y\leq x\ | Z))\\&=Pr(X\leq x)Pr(Z=1)+Pr(-X\leq x)Pr(Z=-1)\\
+&=\Phi(x)(0.5)+\Phi(x)(0.5)\\&=\Phi(x)\end{aligned}$$
+$$Then,\ Y\sim N(0,1)$$
+$$\begin{aligned}Cov(X,Y)&=E(XY)-E(X)E(Y)\\&=E(X^2Z)-(0)(0)\\&=E(X^2)E(Z)\ (because\ X\ and\ Z\ are\ Independent)\\&=(1)(0)\\&=0\end{aligned}$$
+$$X\ and\ Y\ are\ univariate\ normal\ distributions\  with\ Cov(X,Y)=0\ \ but\ X\ and\ Y\ are\ not\ independent$$
+
